@@ -25,7 +25,7 @@ namespace IDS.ELEXAI.XmlDomTreeshaker.Processor
         File.Copy(f, outputFileEval, true);
         File.Copy(f, outputFileTrain, true);
 
-        if (!TryLoadXmlDocument(f, logger, out var docOriginal))
+        if (!LoadXmlDocument(f, logger, out var docOriginal))
         {
           logger.Warning($"Skipping file due to XML parse errors: {fileName}");
           continue;
@@ -42,7 +42,7 @@ namespace IDS.ELEXAI.XmlDomTreeshaker.Processor
 
     private void PrepareDocument(string path, List<string> remove, Logger logger)
     {
-      if (!TryLoadXmlDocument(path, logger, out var document))
+      if (!LoadXmlDocument(path, logger, out var document))
       {
         logger.Warning($"Skipping output file due to XML parse errors: {Path.GetFileName(path)}");
         return;
@@ -50,7 +50,7 @@ namespace IDS.ELEXAI.XmlDomTreeshaker.Processor
 
       foreach (var xpath in remove)
       {
-        var node = SelectSingleNodeLenient(document, xpath);
+        var node = SelectSingleNode(document, xpath);
         if (node is XmlAttribute attribute)
         {
           attribute.OwnerElement?.Attributes.Remove(attribute);
@@ -64,26 +64,11 @@ namespace IDS.ELEXAI.XmlDomTreeshaker.Processor
       SaveDocument(document, path);
     }
 
-    private bool TryLoadXmlDocument(string path, Logger logger, out XmlDocument document)
+    private bool LoadXmlDocument(string path, Logger logger, out XmlDocument document)
     {
       var xml = File.ReadAllText(path, Encoding.UTF8);
 
-      if (TryParseXml(xml, out document))
-        return true;
-
-      var normalized = NormalizeMalformedXml(xml);
-      if (TryParseXml(normalized, out document))
-      {
-        logger.Warning($"Loaded malformed XML with fallback normalization: {Path.GetFileName(path)}");
-        return true;
-      }
-
-      logger.Warning($"Unable to parse XML even after fallback normalization: {Path.GetFileName(path)}");
-      return false;
-    }
-
-    private bool TryParseXml(string xml, out XmlDocument document)
-    {
+      bool ret;
       document = new XmlDocument { XmlResolver = null, PreserveWhitespace = true };
 
       var settings = new XmlReaderSettings
@@ -103,25 +88,21 @@ namespace IDS.ELEXAI.XmlDomTreeshaker.Processor
         using var sr = new StringReader(xml);
         using var xr = XmlReader.Create(sr, settings);
         document.Load(xr);
-        return true;
+        ret = true;
       }
       catch (XmlException)
       {
-        return false;
+        ret = false;
       }
+
+      if (ret)
+        return true;
+
+      logger.Warning($"Unable to parse XML even after fallback normalization: {Path.GetFileName(path)}");
+      return false;
     }
 
-    private string NormalizeMalformedXml(string xml)
-    {
-      var filtered = new string(xml.Where(XmlConvert.IsXmlChar).ToArray());
-      filtered = Regex.Replace(filtered, "\\sxmlns(:[\\w\\-\\.]+)?\\s*=\\s*\"[^\"]*\"", string.Empty, RegexOptions.IgnoreCase);
-      filtered = Regex.Replace(filtered, "\\sxmlns(:[\\w\\-\\.]+)?\\s*=\\s*'[^']*'", string.Empty, RegexOptions.IgnoreCase);
-      filtered = Regex.Replace(filtered, "(<\\/?)([A-Za-z_][\\w\\-\\.]*:)", "$1", RegexOptions.IgnoreCase);
-      filtered = Regex.Replace(filtered, "(\\s)([A-Za-z_][\\w\\-\\.]*:)([A-Za-z_][\\w\\-\\.]*\\s*=)", "$1$3", RegexOptions.IgnoreCase);
-      return filtered;
-    }
-
-    private XmlNode? SelectSingleNodeLenient(XmlDocument document, string xpath)
+    private XmlNode? SelectSingleNode(XmlDocument document, string xpath)
     {
       try
       {
@@ -134,7 +115,7 @@ namespace IDS.ELEXAI.XmlDomTreeshaker.Processor
       }
     }
 
-    private List<XmlNode> SelectNodesLenient(XmlDocument document, string xpath)
+    private List<XmlNode> SelectAllNodes(XmlDocument document, string xpath)
     {
       try
       {
@@ -155,7 +136,7 @@ namespace IDS.ELEXAI.XmlDomTreeshaker.Processor
 
     private void SamplingProcess(Logger logger, XmlDocument original, Random random, Rule rule, out List<string> eval, out List<string> train)
     {
-      var nodes = SelectNodesLenient(original, rule.Xpath);
+      var nodes = SelectAllNodes(original, rule.Xpath);
 
       if (nodes.Count == 0)
       {
