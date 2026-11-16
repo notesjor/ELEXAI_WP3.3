@@ -10,7 +10,7 @@ namespace IDS.ELEXAI.XmlDomTreeshaker.Processor
 {
   public class ProcessorXmlSingleFile : AbstractProcessor
   {
-    public override string Info => "Processor for single XML files.";
+    public override string Info => "Processor for XML files.";
 
     public override void Execute(Logger logger, Configuration config, string input, string outputEval, string outputTrain)
     {
