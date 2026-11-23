@@ -1,3 +1,5 @@
 <Solution>
   <Project Path="IDS.ELEXAI.XmlDomTreeshaker/IDS.ELEXAI.XmlDomTreeshaker.csproj" />
+  <Project Path="IDS.ELEXAI.XmlPromptBuilder/IDS.ELEXAI.XmlPromptBuilder.csproj" Id="ee5aae43-66d6-49bb-a642-a54b047a73ee" />
+  <Project Path="IDS.ELEXAI.XmlToolbox/IDS.ELEXAI.XmlToolbox.csproj" Id="14734d8b-862c-4f68-9a46-e694b50e0ac5" />
 </Solution>

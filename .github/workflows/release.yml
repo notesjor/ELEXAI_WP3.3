@@ -157,48 +157,50 @@ jobs:
   # ------------------------------------------
   # 3. Ein GitHub Release mit allen Paketen
   # ------------------------------------------
+  
   release:
     needs: publish
-
+  
     runs-on: ubuntu-24.04
-
+  
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+  
       - name: Download all build artifacts
         uses: actions/download-artifact@v8
         with:
           pattern: release-*
           path: release-assets
           merge-multiple: true
-
+  
       - name: Create or update GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
-
+  
           TAG="$GITHUB_REF_NAME"
-
+  
           shopt -s nullglob
           assets=(release-assets/*.zip)
-
+  
           if (( ${#assets[@]} == 0 )); then
             echo "No release packages found!"
             exit 1
           fi
-
+  
           echo "Creating release for $TAG"
-
+  
           if gh release view "$TAG" >/dev/null 2>&1; then
-
             echo "Release already exists. Uploading new assets..."
-
             gh release upload "$TAG" "${assets[@]}" --clobber
-
           else
-
             gh release create "$TAG" "${assets[@]}" \
               --title "$TAG" \
               --generate-notes
-
           fi
+

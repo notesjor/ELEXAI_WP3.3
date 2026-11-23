@@ -1,9 +1,7 @@
-﻿using System.Text;
-using System.Text.RegularExpressions;
-using System.Xml;
-using System.Xml.XPath;
+﻿using System.Xml;
 using IDS.ELEXAI.XmlDomTreeshaker.Model;
 using IDS.ELEXAI.XmlDomTreeshaker.Processor.Abstract;
+using IDS.ELEXAI.XmlToolbox;
 using Serilog.Core;
 
 namespace IDS.ELEXAI.XmlDomTreeshaker.Processor
@@ -25,7 +23,7 @@ namespace IDS.ELEXAI.XmlDomTreeshaker.Processor
         File.Copy(f, outputFileEval, true);
         File.Copy(f, outputFileTrain, true);
 
-        if (!LoadXmlDocument(f, logger, out var docOriginal))
+        if (!XmlHelper.LoadXmlDocument(f, logger, out var docOriginal))
         {
           logger.Warning($"Skipping file due to XML parse errors: {fileName}");
           continue;
@@ -33,16 +31,17 @@ namespace IDS.ELEXAI.XmlDomTreeshaker.Processor
 
         foreach (var r in config.Rules)
         {
-          SamplingProcess(logger, docOriginal, config.Random, r, out var eval, out var train);
-          PrepareDocument(outputFileEval, train, logger);
-          PrepareDocument(outputFileTrain, eval, logger);
+          GenerateTrainAndEvalDataset(logger, docOriginal, config.Random, r, out var eval, out var train);
+
+          RemoveUnwantedNodes(outputFileEval, train, logger);
+          RemoveUnwantedNodes(outputFileTrain, eval, logger);
         }
       }
     }
 
-    private void PrepareDocument(string path, List<string> remove, Logger logger)
+    private void RemoveUnwantedNodes(string path, List<string> remove, Logger logger)
     {
-      if (!LoadXmlDocument(path, logger, out var document))
+      if (!XmlHelper.LoadXmlDocument(path, logger, out var document))
       {
         logger.Warning($"Skipping output file due to XML parse errors: {Path.GetFileName(path)}");
         return;
@@ -50,7 +49,7 @@ namespace IDS.ELEXAI.XmlDomTreeshaker.Processor
 
       foreach (var xpath in remove)
       {
-        var node = SelectSingleNode(document, xpath);
+        var node = XmlHelper.SelectSingleNode(document, xpath);
         if (node is XmlAttribute attribute)
         {
           attribute.OwnerElement?.Attributes.Remove(attribute);
@@ -61,82 +60,12 @@ namespace IDS.ELEXAI.XmlDomTreeshaker.Processor
         }
       }
 
-      SaveDocument(document, path);
+      XmlHelper.SaveDocument(document, path);
     }
 
-    private bool LoadXmlDocument(string path, Logger logger, out XmlDocument document)
+    private void GenerateTrainAndEvalDataset(Logger logger, XmlDocument original, Random random, Rule rule, out List<string> eval, out List<string> train)
     {
-      var xml = File.ReadAllText(path, Encoding.UTF8);
-
-      bool ret;
-      document = new XmlDocument { XmlResolver = null, PreserveWhitespace = true };
-
-      var settings = new XmlReaderSettings
-      {
-        DtdProcessing = DtdProcessing.Ignore,
-        ValidationType = ValidationType.None,
-        IgnoreComments = false,
-        IgnoreWhitespace = false,
-        IgnoreProcessingInstructions = false,
-        CheckCharacters = false,
-        XmlResolver = null,
-        ConformanceLevel = ConformanceLevel.Document
-      };
-
-      try
-      {
-        using var sr = new StringReader(xml);
-        using var xr = XmlReader.Create(sr, settings);
-        document.Load(xr);
-        ret = true;
-      }
-      catch (XmlException)
-      {
-        ret = false;
-      }
-
-      if (ret)
-        return true;
-
-      logger.Warning($"Unable to parse XML even after fallback normalization: {Path.GetFileName(path)}");
-      return false;
-    }
-
-    private XmlNode? SelectSingleNode(XmlDocument document, string xpath)
-    {
-      try
-      {
-        return document.SelectSingleNode(xpath);
-      }
-      catch (XPathException)
-      {
-        var stripped = StripXPathPrefixes(xpath);
-        return document.SelectSingleNode(stripped);
-      }
-    }
-
-    private List<XmlNode> SelectAllNodes(XmlDocument document, string xpath)
-    {
-      try
-      {
-        return document.SelectNodes(xpath)?.Cast<XmlNode>().ToList() ?? [];
-      }
-      catch (XPathException)
-      {
-        var stripped = StripXPathPrefixes(xpath);
-        return document.SelectNodes(stripped)?.Cast<XmlNode>().ToList() ?? [];
-      }
-    }
-
-    private string StripXPathPrefixes(string xpath)
-    {
-      var withoutNodePrefixes = Regex.Replace(xpath, @"(?<=/|::)([A-Za-z_][\w\-.]*):(?=[A-Za-z_][\w\-.]*|\*)", string.Empty);
-      return Regex.Replace(withoutNodePrefixes, @"(?<=@)([A-Za-z_][\w\-.]*):(?=[A-Za-z_][\w\-.]*)", string.Empty);
-    }
-
-    private void SamplingProcess(Logger logger, XmlDocument original, Random random, Rule rule, out List<string> eval, out List<string> train)
-    {
-      var nodes = SelectAllNodes(original, rule.Xpath);
+      var nodes = XmlHelper.SelectAllNodes(original, rule.Xpath);
 
       if (nodes.Count == 0)
       {
@@ -154,51 +83,11 @@ namespace IDS.ELEXAI.XmlDomTreeshaker.Processor
       for (var i = 0; i < evalCount; i++)
       {
         var idx = random.Next(0, nodes.Count);
-        eval.Add(GetXPath(nodes[idx]));
+        eval.Add(XmlHelper.GetXPath(nodes[idx]));
         nodes.RemoveAt(idx);
       }
 
-      train = nodes.Select(GetXPath).ToList();
-    }
-
-    private string GetXPath(XmlNode node)
-    {
-      if (node is XmlAttribute attribute)
-      {
-        return $"{GetXPath(attribute.OwnerElement!)}/@*[local-name()='{attribute.LocalName}']";
-      }
-
-      var segments = new Stack<string>();
-      var current = node;
-
-      while (current is { NodeType: XmlNodeType.Element })
-      {
-        var siblings = current.ParentNode?.ChildNodes
-          .Cast<XmlNode>()
-          .Where(x => x.NodeType == XmlNodeType.Element && x.LocalName == current.LocalName)
-          .ToList() ?? [];
-
-        var index = siblings.Count > 1 ? siblings.IndexOf(current) + 1 : 1;
-        segments.Push($"*[local-name()='{current.LocalName}'][{index}]");
-        current = current.ParentNode!;
-      }
-
-      return "/" + string.Join("/", segments);
-    }
-
-    private void SaveDocument(XmlDocument document, string path)
-    {
-      var settings = new XmlWriterSettings
-      {
-        Encoding = Encoding.UTF8,
-        OmitXmlDeclaration = false,
-        Indent = false,
-        CheckCharacters = false
-      };
-
-      using var fs = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None);
-      using var writer = XmlWriter.Create(fs, settings);
-      document.Save(writer);
+      train = nodes.Select(XmlHelper.GetXPath).ToList();
     }
   }
 }
