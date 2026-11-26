@@ -11,13 +11,8 @@ namespace IDS.ELEXAI.XmlDomTreeshaker
     private static Logger _logger;
     private static string _outputEval;
     private static string _outputTrain;
-    private static AbstractProcessor _selectedProcessor;
+    private static AbstractProcessor _selectedProcessor = new ProcessorXmlSingleFile();
     private static Configuration? _config;
-    private static Dictionary<string, AbstractProcessor> _processors =
-      new Dictionary<string, AbstractProcessor>
-      {
-        { "xml", new ProcessorXmlSingleFile() }
-      };
 
     static void Main(string[] args)
     {
@@ -26,22 +21,19 @@ namespace IDS.ELEXAI.XmlDomTreeshaker
         SingleArgumentHandling(args[0]);
         return;
       }
-      if(args.Length != 4)
+      if(args.Length != 3)
       {
         PrintHelp();
         return;
       }
 
       var configJsonPath = args[0];
-      var processor = args[1];
-      var input = args[2];
-      var output = args[3];
+      var input = args[1];
+      var output = args[2];
 
       if (!ValidateComfig(configJsonPath))
         return;
       if (!ValidInput(input))
-        return;
-      if (!ValidateProcessor(processor))
         return;
       ValidateOutput(output);
 
@@ -50,14 +42,12 @@ namespace IDS.ELEXAI.XmlDomTreeshaker
 
     private static void PrintHelp()
     {
-      Console.WriteLine("Usage: shake <configJsonPath> <processor> <input> <output>");
+      Console.WriteLine("Usage: shake <configJsonPath> <input> <output>");
       Console.WriteLine("Where:");
       Console.WriteLine("<configJsonPath> - path to the configuration JSON file");
-      Console.WriteLine("<processor> - the processor to use (see 'shake list' for available processors)");
       Console.WriteLine("<input> - path to the input file or directory");
       Console.WriteLine("<output> - path to the output directory (create log.txt and eval/train subdirectories)");      
       Console.WriteLine("Or: shake init - to create an empty configuration file (see examples in repo)");
-      Console.WriteLine("Or: shake list - to list all supported file processors");
       Console.WriteLine("Or: shake help - to display this help information");
     }
 
@@ -65,9 +55,6 @@ namespace IDS.ELEXAI.XmlDomTreeshaker
     {
       switch (arg)
       {
-        case "list":
-          PrintProcessors();
-          break;
         case "init":
           CreateEmptyConfiguration();
           break;
@@ -81,26 +68,6 @@ namespace IDS.ELEXAI.XmlDomTreeshaker
     {
       using var fs = new FileStream("template.json", FileMode.Create, FileAccess.Write);
       System.Text.Json.JsonSerializer.Serialize(fs, new Configuration());
-    }
-
-    private static void PrintProcessors()
-    {
-      Console.WriteLine("Available processors:");
-      foreach(var p in _processors)
-        Console.WriteLine($"{p.Key}\t-\t{p.Value.Info}");
-    }
-
-    private static bool ValidateProcessor(string processor)
-    {
-      if (_processors.TryGetValue(processor, out var res))
-      {
-        _selectedProcessor = res;
-        return true;
-      }
-
-      Console.WriteLine($"{processor} not found.");
-      PrintProcessors();
-      return false;
     }
 
     private static void ValidateOutput(string output)
