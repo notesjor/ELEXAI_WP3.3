@@ -95,13 +95,13 @@ namespace IDS.ELEXAI.Xml2Trainingdata
           new MessageExtended
           {
             Role = Role.User,
-            Content = "You get these kwic-snippts: {citation[all].text} - please write a short definition.",
+            Content = "Here are several citations:\n{citation[all].text}\nWrite a definition for them.",
             Rules = new List<Rule>
             {
               new Rule
               {
                 Name = "citation",
-                XpathInstance = "//citation"
+                XpathInstance = "//sense[cit]/cit/quote"
               }
             }
           },
@@ -114,7 +114,7 @@ namespace IDS.ELEXAI.Xml2Trainingdata
               new Rule
               {
                 Name = "definition",
-                XpathInstance = "//definition"
+                XpathInstance = "//sense[cit]/def"
               }
             }
           }

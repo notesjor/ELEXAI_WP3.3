@@ -54,7 +54,7 @@ public class MessageExtended : Message
     var textOnly = expression.Groups["property"].Success;
 
     if (string.Equals(selector, "all", StringComparison.Ordinal))
-      return string.Concat(nodes.Select(node => GetNodeValue(node, textOnly)));
+      return string.Join("\n", nodes.Select(node => GetNodeValue(node, textOnly)));
 
     var index = string.IsNullOrEmpty(selector) ? 0 : int.Parse(selector);
     return index < nodes.Count ? GetNodeValue(nodes[index], textOnly) : string.Empty;
