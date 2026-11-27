@@ -109,9 +109,12 @@ Each rule connects a placeholder name to an XPath expression:
 | Property | Type | Meaning |
 | --- | --- | --- |
 | `name` | string | Name referenced inside placeholders, for example `citation` in `{citation[all].text}`. |
-| `xpath` | string | XPath expression selecting elements or attributes from the current XML document. |
+| `xpath` | string | XPath expression selecting elements or attributes from the XML document(s). |
+| `lookup` | string | Optional directory whose XML files are searched instead of the current document. |
 
 Rule names must match placeholders exactly. A rule name may contain letters, digits, underscores, dots, and hyphens, but must start with a letter or underscore.
+
+Without `lookup`, a rule keeps the existing behavior and searches only the current XML document. With `lookup`, the XPath is evaluated separately in every `.xml` file directly inside that directory, excluding the current source file, and the matches are combined. Files are processed in filename order so that numeric selectors and `{rule[all]}` are deterministic. Relative lookup paths are resolved relative to the current source file's directory. Subdirectories are not traversed.
 
 If an indexed expression selects no node at that position, it is replaced with an empty string. Placeholders that do not have a corresponding rule remain unchanged. If an XPath returns no nodes, `all` produces an empty string.
 

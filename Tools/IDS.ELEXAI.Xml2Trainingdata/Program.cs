@@ -34,7 +34,11 @@ namespace IDS.ELEXAI.Xml2Trainingdata
         return;
       ValidateOutput(output);
 
-      foreach (var f in Directory.GetFiles(input, "*.*", SearchOption.TopDirectoryOnly))
+      var inputFiles = File.Exists(input)
+        ? [input]
+        : Directory.GetFiles(input, "*.*", SearchOption.TopDirectoryOnly);
+
+      foreach (var f in inputFiles)
       {
         var fileName = Path.GetFileName(f);
         _logger.Information($"Processing file: {fileName}");
@@ -48,7 +52,7 @@ namespace IDS.ELEXAI.Xml2Trainingdata
         var promptFilePath = Path.Combine(_outputPrompts, $"{fileName}.json");
 
         var instance = new TrainingDataset { 
-          Messages = _template.Messages.Select(m => m.Create(docOriginal))
+          Messages = _template.Messages.Select(m => m.Create(docOriginal, f))
         };
 
         using var fs = new FileStream(promptFilePath, FileMode.Create, FileAccess.Write);
@@ -89,12 +93,12 @@ namespace IDS.ELEXAI.Xml2Trainingdata
         {
           new MessageExtended
           {
-            Role = Role.System,
+            Role = Role.system,
             Content = "You are an experienced lexicographer who is completing the following task with the goal of later creating a dictionary entry based on this data.",
           },
           new MessageExtended
           {
-            Role = Role.User,
+            Role = Role.user,
             Content = "Here are several citations:\n{citation[all].text}\nWrite a definition for them.",
             Rules = new List<Rule>
             {
@@ -107,7 +111,7 @@ namespace IDS.ELEXAI.Xml2Trainingdata
           },
           new MessageExtended
           {
-            Role = Role.Assistant,
+            Role = Role.assistant,
             Content = "{definition[0].text}",
             Rules = new List<Rule>
             {
