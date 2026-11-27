@@ -13,5 +13,9 @@ namespace IDS.ELEXAI.Xml2Trainingdata.Model
     [JsonPropertyName("lookup")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public string? Lookup { get; set; }
+
+    [JsonPropertyName("lookupIdXpath")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public string? LookupIdXpath { get; set; }
   }
 }

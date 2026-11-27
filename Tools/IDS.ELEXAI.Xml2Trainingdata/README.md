@@ -111,10 +111,13 @@ Each rule connects a placeholder name to an XPath expression:
 | `name` | string | Name referenced inside placeholders, for example `citation` in `{citation[all].text}`. |
 | `xpath` | string | XPath expression selecting elements or attributes from the XML document(s). |
 | `lookup` | string | Optional directory whose XML files are searched instead of the current document. |
+| `lookupIdXpath` | string | Optional XPath selecting the first ID in each lookup file. Every match is prefixed with this ID and a tab. |
 
 Rule names must match placeholders exactly. A rule name may contain letters, digits, underscores, dots, and hyphens, but must start with a letter or underscore.
 
 Without `lookup`, a rule keeps the existing behavior and searches only the current XML document. With `lookup`, the XPath is evaluated separately in every `.xml` file directly inside that directory, excluding the current source file, and the matches are combined. Files are processed in filename order so that numeric selectors and `{rule[all]}` are deterministic. Relative lookup paths are resolved relative to the current source file's directory. Subdirectories are not traversed.
+
+When `lookupIdXpath` is configured, its first match in each lookup file is prepended to every `xpath` match from that file as TSV: `ID<TAB>content`. This also applies to indexed placeholders. The ID is taken as text for attributes and as the selected node's inner XML otherwise. If the ID XPath has no match, the value is inserted without a prefix. The `.text` placeholder suffix only affects the content column.
 
 If an indexed expression selects no node at that position, it is replaced with an empty string. Placeholders that do not have a corresponding rule remain unchanged. If an XPath returns no nodes, `all` produces an empty string.
 

@@ -54,9 +54,9 @@ public class MessageExtended : Message
 
   private static string EvaluateExpression(XmlDocument doc, string? sourceFilePath, Rule rule, Match expression)
   {
-    var nodes = SelectNodes(doc, sourceFilePath, rule);
     var selector = expression.Groups["selector"].Value;
     var textOnly = expression.Groups["property"].Success;
+    var nodes = SelectNodes(doc, sourceFilePath, rule);
 
     if (string.Equals(selector, "all", StringComparison.Ordinal))
       return string.Join("\n", nodes.Select(node => GetNodeValue(node, textOnly)));
@@ -65,10 +65,12 @@ public class MessageExtended : Message
     return index < nodes.Count ? GetNodeValue(nodes[index], textOnly) : string.Empty;
   }
 
-  private static List<XmlNode> SelectNodes(XmlDocument doc, string? sourceFilePath, Rule rule)
+  private static List<(XmlNode Node, string? LookupId)> SelectNodes(XmlDocument doc, string? sourceFilePath, Rule rule)
   {
     if (string.IsNullOrWhiteSpace(rule.Lookup))
-      return XmlHelper.SelectAllNodes(doc, rule.XpathInstance);
+      return XmlHelper.SelectAllNodes(doc, rule.XpathInstance)
+        .Select(node => (node, (string?)null))
+        .ToList();
 
     if (string.IsNullOrWhiteSpace(sourceFilePath))
       throw new InvalidOperationException($"The template rule '{rule.Name}' needs the source file path for its lookup.");
@@ -83,7 +85,7 @@ public class MessageExtended : Message
       .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
       .ToList();
 
-    var nodes = new List<XmlNode>();
+    var nodes = new List<(XmlNode Node, string? LookupId)>();
     foreach (var file in files)
     {
       var fullPath = Path.GetFullPath(file);
@@ -91,7 +93,16 @@ public class MessageExtended : Message
         continue;
 
       var lookupDocument = LoadLookupDocument(fullPath);
-      nodes.AddRange(XmlHelper.SelectAllNodes(lookupDocument, rule.XpathInstance));
+      string? lookupId = null;
+      if (!string.IsNullOrWhiteSpace(rule.LookupIdXpath))
+      {
+        var idNodes = XmlHelper.SelectAllNodes(lookupDocument, rule.LookupIdXpath);
+        if (idNodes.Count > 0)
+          lookupId = GetNodeValue(idNodes[0], false);
+      }
+
+      nodes.AddRange(XmlHelper.SelectAllNodes(lookupDocument, rule.XpathInstance)
+        .Select(node => (node, lookupId)));
     }
 
     return nodes;
@@ -123,6 +134,12 @@ public class MessageExtended : Message
     }
 
     return document;
+  }
+
+  private static string GetNodeValue((XmlNode Node, string? LookupId) node, bool textOnly)
+  {
+    var value = GetNodeValue(node.Node, textOnly);
+    return node.LookupId is null ? value : $"{node.LookupId}\t{value}";
   }
 
   private static string GetNodeValue(XmlNode node, bool textOnly)
